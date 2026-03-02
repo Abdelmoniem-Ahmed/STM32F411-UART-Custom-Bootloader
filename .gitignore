@@ -1,0 +1,43 @@
+# Build folders
+/build/
+/Debug/
+/Release/
+/Release_Debug/
+
+# Object files and libraries
+*.o
+*.obj
+*.elf
+*.bin
+*.hex
+*.map
+*.lib
+*.a
+*.lnk
+
+# Keil uVision files
+*.uvproj*
+*.uvopt*
+*.ilk
+*.bak
+
+# STM32CubeIDE / Eclipse files
+.project
+.cproject
+.settings/
+*.launch
+
+# Visual Studio Code
+.vscode/
+
+# Backup and temporary files
+*~
+*.swp
+*.swo
+*.tmp
+*.log
+
+# Others
+*.d
+*.lst
+*.dep
