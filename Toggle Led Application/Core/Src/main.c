@@ -46,8 +46,8 @@
 
 /* USER CODE BEGIN PV */
 
-uint16_t timer_counter = 0;
-uint16_t Led_Delay = 100;
+volatile uint16_t timer_counter = 0;
+volatile uint16_t Led_Delay = 100;
 
 /* USER CODE END PV */
 
@@ -77,7 +77,7 @@ int main(void)
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
+  __enable_irq();
   /* USER CODE BEGIN Init */
 
   /* USER CODE END Init */
@@ -104,7 +104,10 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+	if ( timer_counter >= Led_Delay){
+		timer_counter = 0;
+		HAL_GPIO_TogglePin(Green_Led_GPIO_Port , Green_Led_Pin);
+	}
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -159,11 +162,10 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
-	timer_counter++;
-	if ( timer_counter >= Led_Delay){
-		timer_counter = 0;
-		HAL_GPIO_TogglePin(Green_Led_GPIO_Port , Green_Led_Pin);
+	if(htim->Instance == TIM10){
+		timer_counter++;
 	}
+	
 }
 
 /* USER CODE END 4 */

@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "crc.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -48,6 +49,8 @@
 
 /* USER CODE BEGIN PV */
 extern uint8_t go_to_user_app_flag;
+extern uint8_t Host_Send_Data_Flag;
+volatile uint8_t TIM10_1sec_counter = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -92,11 +95,12 @@ int main(void)
   MX_GPIO_Init();
   MX_CRC_Init();
   MX_USART2_UART_Init();
+  MX_TIM10_Init();
   /* USER CODE BEGIN 2 */
-
+	HAL_TIM_Base_Start_IT(&htim10);
 	status &= BL_Start_Message();
   /* USER CODE END 2 */
-	
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -104,9 +108,18 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		status &= BL_USART_Fetch_Host_Command();
-		if(1 == go_to_user_app_flag){
+		if(TIM10_1sec_counter >= BOOTLOADER_TIMEOUT){
 			Bootloader_Go_To_User_APP();
+		}	
+		else{
+			status &= BL_USART_Fetch_Host_Command();
+			if(Host_Send_Data_Flag == BOOTLOADER_REC_DATA_FROM_HOST){
+				TIM10_1sec_counter = 0;
+				HAL_TIM_Base_Stop_IT(&htim10);
+			}
+			if(1 == go_to_user_app_flag){
+				Bootloader_Go_To_User_APP();
+			}
 		}
   }
   /* USER CODE END 3 */
@@ -159,7 +172,14 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
+{
+	if(htim->Instance == TIM10)
+	{
+		TIM10_1sec_counter++;
+	}	
+}
 /* USER CODE END 4 */
 
 /**

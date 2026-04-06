@@ -108,9 +108,9 @@
 #define CBL_CHANGE_ROP_LEVEL_CMD			0x21
 
 #define CBL_VENDOR_ID						10
-#define CBL_SW_MAJOR_VERSION				3
-#define CBL_SW_MINOR_VERSION				2
-#define CBL_SW_PATCH_VERSION				7
+#define CBL_SW_MAJOR_VERSION				1
+#define CBL_SW_MINOR_VERSION				0
+#define CBL_SW_PATCH_VERSION				1
 
 #define CRC_TYPE_SIZE_BYTE					4
 
@@ -148,6 +148,13 @@
 
 #define FLASH_PAYLOAD_WRITE_FAILED			0x00
 #define FLASH_PAYLOAD_WRITE_SUCCEEDED		0x01
+
+#define BOOTLOADER_MAX_DELAY				200
+
+#define BOOTLOADER_REC_DATA_FROM_HOST		1
+#define BOOTLOADER_N_REC_DATA_FROM_HOST		0
+#define BOOTLOADER_TIMEOUT					3
+
 
 /* Section: Macro Functions Declarations */
 

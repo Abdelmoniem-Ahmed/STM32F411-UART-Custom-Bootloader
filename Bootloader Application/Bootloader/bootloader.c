@@ -86,6 +86,9 @@ static void Bootloader_Send_NACK(void);
 /****************** Global Variable Definition ******************/
 
 uint8_t go_to_user_app_flag = 0;
+uint8_t Host_Send_Data_Flag = BOOTLOADER_N_REC_DATA_FROM_HOST;
+extern TIM_HandleTypeDef htim10;
+
 
 static uint8_t BL_Host_Buffer[BL_HOST_BUFFER_RX_LENGTH] = {0};
 static uint8_t BL_Supported_CMD[] = {
@@ -113,10 +116,14 @@ void Bootloader_Go_To_User_APP(void){
 	/* Fetch Reset Handler Address */
 	pMainApp ResetHandler_Address = (pMainApp) user_mainAPP;	
 	/* DeInitialize Modules */
+	__disable_irq();
 	HAL_DeInit();  /* This function de-Initializes common part of the HAL and stops the systick */
 	HAL_RCC_DeInit(); /* Resets the RCC clock configuration to the default reset state. */
+	HAL_TIM_Base_DeInit(&htim10);
 	/* Set Main Stack Pointer */
 	__set_MSP(MSP_Value);
+	/* Configure the Vector Table location */
+	SCB->VTOR = FLASH_SECTOR2_BASE_ADDRESS;	/* Vector Table Relocation in Internal Flash */
 	/* jump to application Reset Handler */
 	/* This Function Have All Important Initialization of Application important modules
 	 * But before it must deinitailze the bootloader modules to not make conflict 	
@@ -139,7 +146,7 @@ BL_Status BL_USART_Fetch_Host_Command(void){
 	
 	memset(BL_Host_Buffer , 0 , BL_HOST_BUFFER_RX_LENGTH);
 	
-	HAL_Status = HAL_UART_Receive(BL_HOST_COMMUNICATION_USART , BL_Host_Buffer , 1 , HAL_MAX_DELAY );
+	HAL_Status = HAL_UART_Receive(BL_HOST_COMMUNICATION_USART , BL_Host_Buffer , 1 , BOOTLOADER_MAX_DELAY);
 	
 	if( HAL_OK != HAL_Status){
 		/* print Error Occured message */
@@ -149,14 +156,14 @@ BL_Status BL_USART_Fetch_Host_Command(void){
 	}
 	else{
 		Data_Length = BL_Host_Buffer[0];
-		HAL_Status = HAL_UART_Receive(BL_HOST_COMMUNICATION_USART , (& BL_Host_Buffer[1]) , Data_Length , HAL_MAX_DELAY );
+		HAL_Status = HAL_UART_Receive(BL_HOST_COMMUNICATION_USART , (& BL_Host_Buffer[1]) , Data_Length , BOOTLOADER_MAX_DELAY );
 		if( HAL_OK != HAL_Status){
 #if  (BL_DEBUG_ENABLE == BL_DEBUG_INFO_ENABLE)
 			Bootloader_Print_Message("HAL Error Occured !! \r\n");
 #endif
 		}
 		else{
-			
+			Host_Send_Data_Flag = BOOTLOADER_REC_DATA_FROM_HOST;
 			switch(BL_Host_Buffer[1]){
 				case CBL_GET_VER_CMD:
 					Bootloader_Get_Version(BL_Host_Buffer);
@@ -256,12 +263,12 @@ static void Bootloader_Print_Message(char *format, ...){
 	/* write foramtted data from variable argument list to string */
 	vsprintf(Message, format ,args);
 	
-#if 	(BL_ENABLE_USART_DEBUG_Message == BL_DEBUG_METHOD)	
+#if 	(BL_ENABLE_USART_DEBUG_MESSAGE == BL_DEBUG_METHOD)	
 	/* Transmit The Formatted Data Through The Specified USART */
 	HAL_UART_Transmit(	BL_DEBUG_USART_PERIPHERAL,
 						(uint8_t*)Message, 
 						strlen((char *)Message),
-						HAL_MAX_DELAY);
+						BOOTLOADER_MAX_DELAY);
 #elif 	(BL_ENABLE_SPI_DEBUG_Message == 	BL_DEBUG_METHOD)
 	/* Transmit The Formatted Data Through The Specified SPI */					
 #elif 	(BL_ENABLE_CAN_DEBUG_Message == 	BL_DEBUG_METHOD)
@@ -287,7 +294,7 @@ static void Bootloader_Get_Version(uint8_t * Host_Buffer){
 		Bootloader_Print_Message("CRC_VERIFICATION_PASSED !! \r\n");
 #endif		
 		Bootloader_Send_ACK(4);
-		HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , (uint8_t *)BL_Version , sizeof(BL_Version) , HAL_MAX_DELAY);
+		HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , (uint8_t *)BL_Version , sizeof(BL_Version) , BOOTLOADER_MAX_DELAY);
 		
 	}
 	else{
@@ -313,7 +320,7 @@ static void Bootloader_Get_Help(uint8_t * Host_Buffer){
 		Bootloader_Print_Message("CRC_VERIFICATION_PASSED !! \r\n");
 #endif		
 		Bootloader_Send_ACK(12);
-		HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , (uint8_t *)BL_Supported_CMD ,sizeof(BL_Supported_CMD) , HAL_MAX_DELAY);
+		HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , (uint8_t *)BL_Supported_CMD ,sizeof(BL_Supported_CMD) , BOOTLOADER_MAX_DELAY);
 	}
 	else{
 #if  (BL_DEBUG_ENABLE == BL_DEBUG_INFO_ENABLE)
@@ -344,7 +351,7 @@ static void Bootloader_Get_Chip_Identification_Number(uint8_t * Host_Buffer){
 		
 		/* Report MCU Identification Number to HOST */
 		Bootloader_Send_ACK(2);
-		HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , (uint8_t *)&MCU_Identification_Number  , sizeof(MCU_Identification_Number) , HAL_MAX_DELAY);
+		HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , (uint8_t *)&MCU_Identification_Number  , sizeof(MCU_Identification_Number) , BOOTLOADER_MAX_DELAY);
 	}
 	else{
 #if  (BL_DEBUG_ENABLE == BL_DEBUG_INFO_ENABLE)
@@ -378,11 +385,11 @@ static void Bootloader_Jump_To_Address(uint8_t * Host_Buffer){
 		/* Check The validity Of the Address  */
 		if( ADDRESS_IS_INVALID == Address_Verfication ){
 			/* Report to the Host Address Is Invalid */
-			HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART ,(uint8_t *) &Address_Verfication , 1 , HAL_MAX_DELAY);
+			HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART ,(uint8_t *) &Address_Verfication , 1 , BOOTLOADER_MAX_DELAY);
 		}	
 		else{
 			/* Report Address Verfication Succeeded to HOST */
-			HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART ,(uint8_t *) &Address_Verfication , 1 , HAL_MAX_DELAY);
+			HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART ,(uint8_t *) &Address_Verfication , 1 , BOOTLOADER_MAX_DELAY);
 			/* Prepare the Address to Jump */
 			/* Because we use mcu based on ARM Cortex-M4 architecture and it use Thumb ISA
 			 * the LSB must be 1 it called the T-bit indicates that it is thumb instruction
@@ -426,11 +433,11 @@ static void Bootloader_Erase_Flash(uint8_t * Host_Buffer){
 		Erase_Status = Perform_Flash_Erase(BL_Host_Buffer[2] , BL_Host_Buffer[3]);
 		if(ERASE_SUCCEEDED == Erase_Status){
 			/* Report ERASE_SUCCEEDED  */
-			HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , ((uint8_t *)&Erase_Status) , 1 , HAL_MAX_DELAY);
+			HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , ((uint8_t *)&Erase_Status) , 1 , BOOTLOADER_MAX_DELAY);
 		}
 		else{
 			/* Report ERASE_FAILED  */
-			HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , ((uint8_t *)&Erase_Status) , 1 , HAL_MAX_DELAY);
+			HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , ((uint8_t *)&Erase_Status) , 1 , BOOTLOADER_MAX_DELAY);
 		}
 	}
 	else{
@@ -470,11 +477,11 @@ static void Bootloader_Memory_Write(uint8_t * Host_Buffer){
 			Flash_Payload_Write_Status = Bootloader_Memory_Write_Payload( (uint8_t *)(&Host_Buffer[7]) ,Host_Address , Payload_Len);
 			if(FLASH_PAYLOAD_WRITE_SUCCEEDED == Flash_Payload_Write_Status){
 				/* Send Payload Write Passed to the Host */
-				HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , &Flash_Payload_Write_Status , 1 , HAL_MAX_DELAY );
+				HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , &Flash_Payload_Write_Status , 1 , BOOTLOADER_MAX_DELAY );
 			}
 			else{
 				/* Send Payload Write Failed to the Host */
-				HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , &Flash_Payload_Write_Status , 1 , HAL_MAX_DELAY );
+				HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , &Flash_Payload_Write_Status , 1 , BOOTLOADER_MAX_DELAY );
 			}
 		}
 		else{
@@ -512,7 +519,7 @@ static void Bootloader_Read_Protection_Level(uint8_t * Host_Buffer){
 		/* Get Read Protection Level */
 		RDP_Level = Bootloader_STM32F411_Get_RDP_Level();
 		/* report read protection level to Host */
-		HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , &RDP_Level , 1, HAL_MAX_DELAY);
+		HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , &RDP_Level , 1, BOOTLOADER_MAX_DELAY);
 	}
 	else{
 #if  (BL_DEBUG_ENABLE == BL_DEBUG_INFO_ENABLE)
@@ -552,7 +559,7 @@ static void Bootloader_Change_Read_Protection_Level(uint8_t * Host_Buffer){
 		else{
 			ROP_Level_Status = ROP_LEVEL_CHANGE_INVALID;
 		}
-		HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , (uint8_t *)&ROP_Level_Status , 1 , HAL_MAX_DELAY);
+		HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , (uint8_t *)&ROP_Level_Status , 1 , BOOTLOADER_MAX_DELAY);
 	}
 	else{
 #if  (BL_DEBUG_ENABLE == BL_DEBUG_INFO_ENABLE)
@@ -769,11 +776,11 @@ static void Bootloader_Send_ACK(uint8_t Reply_Len){
 	ACK_Value[0] = CBL_SEND_ACK;
 	ACK_Value[1] = Reply_Len;
 	
-	HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , (uint8_t *)ACK_Value , sizeof(ACK_Value) , HAL_MAX_DELAY);
+	HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , (uint8_t *)ACK_Value , sizeof(ACK_Value) , BOOTLOADER_MAX_DELAY);
 }
 
 static void Bootloader_Send_NACK(void){
 	uint8_t ACK_Value = CBL_SEND_NACK;
 	
-	HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , &ACK_Value , sizeof(ACK_Value) , HAL_MAX_DELAY);
+	HAL_UART_Transmit(BL_HOST_COMMUNICATION_USART , &ACK_Value , sizeof(ACK_Value) , BOOTLOADER_MAX_DELAY);
 }
